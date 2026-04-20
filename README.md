@@ -40,8 +40,6 @@ ai_insurance_reporting/
   utils/           # Logging and artifact path helpers
 configs/
 artifacts/
-docs/
-tests/
 ```
 
 ### If you want to inspect a specific capability, start here
@@ -57,7 +55,6 @@ tests/
 | Movement analysis | `ai_insurance_reporting/reporting/movement.py` |
 | Chatbot and tools | `ai_insurance_reporting/chatbot/agent.py`, `ai_insurance_reporting/chatbot/planner.py`, `ai_insurance_reporting/chatbot/tools.py`, `ai_insurance_reporting/chatbot/indexing.py` |
 | Dashboard and CLI | `ai_insurance_reporting/interface/streamlit_app.py`, `ai_insurance_reporting/interface/cli.py` |
-| Documents and figures | `docs/generate_document_figures.py`, `docs/build_rich_docx.py`, `docs/build_consolidated_docs.py` |
 
 ## End-To-End Workflow
 
@@ -139,14 +136,14 @@ The term `artifact` refers to a saved workflow output that can be used by later 
 
 ### Environment requirements
 
-The package metadata in `pyproject.toml` declares `Python >=3.10`. The project tooling is aligned to Python `3.10`, and Python `3.11` is also a reasonable target. For reproducibility, it is best to use a dedicated virtual environment rather than a shared global Python installation.
+The package metadata in `pyproject.toml` declares `Python >=3.13`. The project tooling is aligned to Python `3.13`, and Python `3.14` is also a reasonable target. For reproducibility, it is best to use a dedicated virtual environment rather than a shared global Python installation.
 
 ### Recommended virtual environment setup
 
 Create a virtual environment from the project root:
 
 ```powershell
-py -3.10 -m venv .venv
+python -m venv .venv
 ```
 
 Activate it in PowerShell:
