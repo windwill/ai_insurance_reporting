@@ -254,7 +254,7 @@ def apply_theme(theme_name: str) -> dict[str, str]:
         color: {theme["text"]};
       }}
       header[data-testid="stHeader"] {{
-        display: none !important;
+        background: transparent !important;
       }}
       [data-testid="stToolbar"],
       [data-testid="stDecoration"],
@@ -2388,7 +2388,12 @@ def render_sidebar(theme_name: str, paths: Any, config: Any) -> tuple[str, str]:
 def main() -> None:
     """Render the Streamlit dashboard."""
 
-    st.set_page_config(page_title="AI Insurance Reporting Demo", page_icon=str(Path(__file__).with_name("dashboard_icon.png")), layout="wide")
+    st.set_page_config(
+        page_title="AI Insurance Reporting Demo",
+        page_icon=str(Path(__file__).with_name("dashboard_icon.png")),
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
     config = load_config()
     paths = ensure_artifact_dirs(config)
     default_theme = st.session_state.get("theme_name", "Executive Light")
