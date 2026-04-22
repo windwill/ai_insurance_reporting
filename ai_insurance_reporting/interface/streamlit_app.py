@@ -11,6 +11,7 @@ from typing import Any
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 from ai_insurance_reporting.chatbot.agent import ReportingAssistantAgent
 from ai_insurance_reporting.chatbot.llm_client import GeminiLLMClient, MockLLMClient, OpenAILLMClient
@@ -118,6 +119,42 @@ def load_json(path: Path | None) -> dict[str, Any] | None:
     if path is None or not path.exists():
         return None
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def ensure_sidebar_open_on_first_load() -> None:
+    """Reopen the sidebar once per session if the browser restored it collapsed."""
+
+    if st.session_state.get("_sidebar_default_open_applied", False):
+        return
+
+    components.html(
+        """
+        <script>
+        (function() {
+          const selectors = [
+            '[data-testid="stSidebarCollapsedControl"] button',
+            '[data-testid="stSidebarCollapsedControl"]',
+            'button[aria-label*="sidebar"]',
+            'button[title*="sidebar"]'
+          ];
+          const expandedSidebar = document.querySelector('[data-testid="stSidebar"][aria-expanded="true"]');
+          if (expandedSidebar) {
+            return;
+          }
+          for (const selector of selectors) {
+            const control = window.parent.document.querySelector(selector);
+            if (control) {
+              control.click();
+              break;
+            }
+          }
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+    st.session_state["_sidebar_default_open_applied"] = True
 
 
 def format_scenario_change(label: str, value: float, *, is_shift: bool = False) -> str | None:
@@ -256,20 +293,43 @@ def apply_theme(theme_name: str) -> dict[str, str]:
       header[data-testid="stHeader"] {{
         background: transparent !important;
       }}
-      [data-testid="stToolbar"],
       [data-testid="stDecoration"],
-      [data-testid="stDeployButton"],
-      [data-testid="stHeaderActionElements"] {{
+      [data-testid="stDeployButton"] {{
         display: none !important;
       }}
       [data-testid="stToolbar"] * {{
         color: {theme["text"]} !important;
         fill: {theme["text"]} !important;
       }}
+      [data-testid="stToolbar"] {{
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+      }}
+      [data-testid="stSidebarCollapsedControl"] {{
+        position: fixed !important;
+        top: 0.45rem !important;
+        left: 0.65rem !important;
+        z-index: 1002 !important;
+      }}
       [data-testid="stToolbar"] button,
       [data-testid="stToolbar"] a,
       [data-testid="stDecoration"] {{
         color: {theme["text"]} !important;
+      }}
+      [data-testid="stSidebarCollapsedControl"] button,
+      [data-testid="stSidebarCollapsedControl"] [role="button"] {{
+        background: {theme["panel"]} !important;
+        border: 1px solid {theme["border"]} !important;
+        border-radius: 999px !important;
+        min-width: 2.5rem !important;
+        min-height: 2.5rem !important;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18) !important;
+      }}
+      [data-testid="stSidebarCollapsedControl"] button:hover,
+      [data-testid="stSidebarCollapsedControl"] [role="button"]:hover {{
+        border-color: {theme["accent"]} !important;
+        background: {theme["panel_strong"]} !important;
       }}
       [data-testid="stStatusWidget"] *,
       [data-testid="stMainMenu"] *,
@@ -2394,6 +2454,7 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    ensure_sidebar_open_on_first_load()
     config = load_config()
     paths = ensure_artifact_dirs(config)
     default_theme = st.session_state.get("theme_name", "Executive Light")
