@@ -1351,10 +1351,43 @@ def render_narrative_reporting(paths: Any) -> None:
     with tab_trace:
         st.markdown('<div class="air-section">', unsafe_allow_html=True)
         st.subheader("Report Traceability View")
-        if markdown_reports:
+        if statements is not None and not statements.empty:
+            st.caption(
+                "This view separates each narrative statement from the source dataset, columns, filters, "
+                "and values used to support it."
+            )
+            traceability_columns = [
+                "statement_id",
+                "section",
+                "statement_text",
+                "source_dataset",
+                "source_columns",
+                "source_filters",
+                "source_value",
+            ]
+            available_traceability_columns = [
+                column for column in traceability_columns if column in statements.columns
+            ]
+            traceability_frame = statements.loc[:, available_traceability_columns].copy()
+            render_table_section(
+                "Statement Evidence Map",
+                format_display_frame(traceability_frame),
+                rows=150,
+                caption=(
+                    "Each row records the data source and extraction logic behind a management "
+                    "commentary statement."
+                ),
+            )
+            if markdown_reports:
+                with st.expander("Raw markdown with inline traceability", expanded=False):
+                    st.markdown(markdown_reports[-1].read_text(encoding="utf-8"))
+        elif markdown_reports:
+            st.warning(
+                "Structured statement traceability is unavailable. Showing the saved markdown report instead."
+            )
             st.markdown(markdown_reports[-1].read_text(encoding="utf-8"))
         else:
-            st.info("No markdown management report is available.")
+            st.info("No traceability output is available.")
         st.markdown("</div>", unsafe_allow_html=True)
     with tab_full:
         full_report_markdown = full_report_markdowns[-1] if full_report_markdowns else None
