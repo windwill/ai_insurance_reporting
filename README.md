@@ -2,6 +2,8 @@
 
 `ai-insurance-reporting` is a modular Python package that implements the synthetic insurance management reporting case study used in this project. It is designed as an illustrative and governed reporting environment rather than as a production actuarial platform. The emphasis is on traceable workflow stages, explainable outputs, reproducible artifacts, and interfaces that support review of generated results.
 
+An introductory video is made available to assist program setup and overview: https://youtu.be/JEerFxuWm18
+
 ## Purpose
 
 The project is intended to demonstrate how AI-supported methods can be embedded within a management reporting workflow built on synthetic life insurance data. The implemented workflow includes:
