@@ -1323,10 +1323,14 @@ def render_narrative_reporting(paths: Any) -> None:
     final_report_dir = paths.reports / "final"
     statements_path = find_existing_path(base_dir, "narrative_statements")
     statements = load_table(statements_path)
-    markdown_reports = sorted(base_dir.glob("management_report_*.md"))
+    markdown_reports = sorted(
+        path for path in base_dir.glob("management_report_*.md") if "_llm_" not in path.stem
+    )
     llm_markdown_reports = sorted(base_dir.glob("management_report_llm_*.md"))
-    full_report_markdowns = sorted(final_report_dir.glob("management_report_full_*.md"))
-    full_report_llm_markdowns = sorted(final_report_dir.glob("management_report_full_llm_*.md"))
+    full_report_markdowns = sorted(
+        path for path in final_report_dir.glob("management_report_full_*.md") if "_llm_" not in path.stem
+    )
+    full_report_llm_markdowns = sorted(final_report_dir.glob("management_report_llm_*.md"))
     full_report_sections_path = find_existing_path(final_report_dir, "management_report_sections")
     full_report_sections = load_table(full_report_sections_path)
     render_page_header(
@@ -1352,18 +1356,17 @@ def render_narrative_reporting(paths: Any) -> None:
             ("Statements", "Individual traceable commentary lines linked back to supporting data or model outputs."),
             ("Sections", "Narrative groupings used to assemble the management report."),
             ("Statement Library", "Granular commentary view for reviewers who want to inspect traceability line by line."),
-            ("Management Report", "Clean narrative commentary view for management-facing reading."),
-            ("Full Report", "Assembled report package that combines insights, anomalies, movement analysis, commentary, and figures."),
+            ("Management Report", "Concise management-facing commentary focused on the quarter narrative itself."),
+            ("Full Review Pack", "Broader assembled output that adds insights, anomaly investigation, movement analysis, quality review, and figures."),
         ],
     )
 
-    tab_statements, tab_report, tab_trace, tab_full = st.tabs(["Statement Library", "Management Report", "Traceability View", "Full Report"])
+    tab_statements, tab_report, tab_trace, tab_full = st.tabs(["Statement Library", "Management Report", "Traceability View", "Full Review Pack"])
     with tab_statements:
         render_table_section("Narrative Statements", format_display_frame(statements), rows=150)
     with tab_report:
         deterministic_tab, llm_tab = st.tabs(["Deterministic View", "LLM-Assisted Draft"])
         with deterministic_tab:
-            st.markdown('<div class="air-section">', unsafe_allow_html=True)
             st.subheader("Management Report")
             if markdown_reports:
                 raw_report = markdown_reports[-1].read_text(encoding="utf-8")
@@ -1371,18 +1374,17 @@ def render_narrative_reporting(paths: Any) -> None:
                 st.caption("This reading view hides inline traceability details so the report reads like management commentary. The separate Traceability View keeps the full saved markdown available for review.")
             else:
                 st.info("No markdown management report is available.")
-            st.markdown("</div>", unsafe_allow_html=True)
         with llm_tab:
-            st.markdown('<div class="air-section">', unsafe_allow_html=True)
             st.subheader("LLM-Assisted Draft")
             if llm_markdown_reports:
                 st.markdown(llm_markdown_reports[-1].read_text(encoding="utf-8"))
-                st.caption("This optional draft is generated only when a real external LLM is configured. Compare it with the deterministic version before using it in a report pack.")
+                st.caption(
+                    "This draft may remain very close to the deterministic version when the local mock client is "
+                    "active. With a real external LLM, the wording should usually diverge more."
+                )
             else:
                 st.info("No LLM-assisted narrative draft is available. Configure an external LLM provider and rerun the workflow to generate one.")
-            st.markdown("</div>", unsafe_allow_html=True)
     with tab_trace:
-        st.markdown('<div class="air-section">', unsafe_allow_html=True)
         st.subheader("Report Traceability View")
         if statements is not None and not statements.empty:
             st.caption(
@@ -1402,14 +1404,13 @@ def render_narrative_reporting(paths: Any) -> None:
                 column for column in traceability_columns if column in statements.columns
             ]
             traceability_frame = statements.loc[:, available_traceability_columns].copy()
-            render_table_section(
-                "Statement Evidence Map",
-                format_display_frame(traceability_frame),
-                rows=150,
-                caption=(
-                    "Each row records the data source and extraction logic behind a management "
-                    "commentary statement."
-                ),
+            st.markdown("**Statement Evidence Map**")
+            st.caption(
+                "Each row records the data source and extraction logic behind a management commentary statement."
+            )
+            st.dataframe(
+                format_display_frame(traceability_frame).head(150),
+                use_container_width=True,
             )
             if markdown_reports:
                 with st.expander("Raw markdown with inline traceability", expanded=False):
@@ -1421,35 +1422,36 @@ def render_narrative_reporting(paths: Any) -> None:
             st.markdown(markdown_reports[-1].read_text(encoding="utf-8"))
         else:
             st.info("No traceability output is available.")
-        st.markdown("</div>", unsafe_allow_html=True)
     with tab_full:
         full_report_markdown = full_report_markdowns[-1] if full_report_markdowns else None
         full_report_llm_markdown = full_report_llm_markdowns[-1] if full_report_llm_markdowns else None
         full_report_text = full_report_markdown.read_text(encoding="utf-8") if full_report_markdown is not None else ""
         full_tab_report, full_tab_llm, full_tab_sections = st.tabs(["Reading View", "LLM-Assisted Draft", "Section View"])
         with full_tab_report:
-            st.markdown('<div class="air-section">', unsafe_allow_html=True)
-            st.subheader("Full Management Report")
+            st.subheader("Full Review Pack")
             if full_report_markdown is not None:
                 st.markdown(full_report_text)
-                st.caption("This view shows the assembled management report content only. Use Section View when you want to inspect the structured section outputs behind the report.")
+                st.caption(
+                    "This view is intentionally broader than the management report. It combines executive summary, "
+                    "material insights, anomaly investigation, movement analysis, draft commentary, quality review, and figures."
+                )
             else:
                 st.info("No full management report markdown is available.")
-            st.markdown("</div>", unsafe_allow_html=True)
         with full_tab_llm:
-            st.markdown('<div class="air-section">', unsafe_allow_html=True)
-            st.subheader("LLM-Assisted Full Report Draft")
+            st.subheader("LLM-Assisted Full Review Pack Draft")
             if full_report_llm_markdown is not None:
                 st.markdown(full_report_llm_markdown.read_text(encoding="utf-8"))
-                st.caption("This optional full-report draft is generated only when a real external LLM is configured. Review it against the deterministic full report before using it externally.")
+                st.caption(
+                    "This draft may remain close to the assembled review pack when the local mock client is active. "
+                    "A real external LLM should usually produce more varied wording."
+                )
             else:
                 st.info("No LLM-assisted full report draft is available. Configure an external LLM provider and rerun the workflow to generate one.")
-            st.markdown("</div>", unsafe_allow_html=True)
         with full_tab_sections:
             render_table_section(
                 "Full Report Sections",
                 full_report_sections,
-                caption="Structured section outputs used to assemble the full management report.",
+                caption="Structured section outputs used to assemble the full review pack.",
             )
     render_download_buttons(
         "Exports",
