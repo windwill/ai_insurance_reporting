@@ -1098,8 +1098,10 @@ def render_data_overview(paths: Any) -> None:
 def render_validation_results(paths: Any) -> None:
     summary_path = find_existing_path(paths.data_processed, "quarterly_validation_summary")
     anomalies_path = find_existing_path(paths.data_processed, "anomaly_table")
+    anomaly_investigation_path = find_existing_path(paths.reports / "reporting", "anomaly_investigation")
     summary = load_table(summary_path)
     anomalies = load_table(anomalies_path)
+    anomaly_investigation = load_table(anomaly_investigation_path)
     render_page_header(
         "Validation Results",
         "Quarterly quality checks, reconciliation controls, and anomaly monitoring.",
@@ -1127,6 +1129,7 @@ def render_validation_results(paths: Any) -> None:
             ("Flagged Records", "Rows with at least one validation issue across the saved reporting history."),
             ("Anomalies", "Exceptions detected by rule-based checks and anomaly logic; these may come from earlier quarters too."),
             ("Anomaly Review", "Detailed exception list for follow-up, not necessarily limited to the latest quarter."),
+            ("Investigation", "Structured first-pass explanation layer that links anomalies to related metrics, recent history, and supporting drivers."),
         ],
     )
     st.caption(
@@ -1134,16 +1137,46 @@ def render_validation_results(paths: Any) -> None:
         f"{int(latest['anomaly_count'])} anomalies. The anomaly table below may include earlier quarters."
     )
 
-    tab_summary, tab_anomalies = st.tabs(["Quarterly Summary", "Anomaly Review"])
+    tab_summary, tab_anomalies, tab_investigation = st.tabs(
+        ["Quarterly Summary", "Anomaly Review", "Anomaly Investigation"]
+    )
     with tab_summary:
         render_table_section("Quarterly Validation Summary", summary)
     with tab_anomalies:
         render_table_section("Anomaly Table", anomalies, rows=150)
+    with tab_investigation:
+        if anomaly_investigation is None or anomaly_investigation.empty:
+            st.info("Anomaly investigation output not found. Run `case-study run` to generate first-pass explanations.")
+        else:
+            investigation_columns = [
+                "anomaly_id",
+                "anomaly_type",
+                "product",
+                "region",
+                "quarter",
+                "likely_drivers",
+                "explanation_text",
+                "support_score",
+                "reviewer_status",
+            ]
+            available_investigation_columns = [
+                column for column in investigation_columns if column in anomaly_investigation.columns
+            ]
+            render_table_section(
+                "Anomaly Investigation",
+                format_display_frame(anomaly_investigation.loc[:, available_investigation_columns]),
+                rows=150,
+                caption=(
+                    "First-pass explanation output assembled from validation anomalies, recent segment history, "
+                    "and related analytical artifacts."
+                ),
+            )
     render_download_buttons(
         "Exports",
         [
             ("Download validation summary", summary_path),
             ("Download anomaly table", anomalies_path),
+            ("Download anomaly investigation", anomaly_investigation_path),
         ],
     )
 
