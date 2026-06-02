@@ -9,9 +9,6 @@ description = "A modular Python package demonstrating an AI-enabled insurance ma
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "MIT" }
-authors = [
-  { name = "OpenAI Codex" }
-]
 keywords = [
   "insurance",
   "reporting",
@@ -19,16 +16,6 @@ keywords = [
   "streamlit",
   "explainability",
   "etl"
-]
-classifiers = [
-  "Development Status :: 3 - Alpha",
-  "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Topic :: Scientific/Engineering :: Artificial Intelligence",
-  "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 dependencies = [
   "pandas>=2.2.0",

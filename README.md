@@ -22,6 +22,10 @@ The project is intended to demonstrate how AI-supported methods can be embedded 
 
 The package should therefore be read as an executable case study. It is not intended to reproduce full IFRS 17 valuation logic or regulatory capital production.
 
+## Use of AI
+
+OpenAI GPT-5.2 through GPT-5.4 were used to support the development of the LLM interface for the OpenAI and Google Gemini APIs, as well as the creation of the `pyproject.toml` configuration file summarizing the required Python libraries and dependencies.
+
 ## How The System Is Organized
 
 The program is organized as a staged workflow in which each step writes structured outputs that can be used by later stages, the dashboard, and the chatbot.
@@ -416,6 +420,21 @@ The chatbot supports three LLM modes:
 
 If no provider is configured, the project uses the deterministic local mock client.
 
+The mock client exists so the chatbot and report-generation paths can run in a fully offline and reproducible way. It is useful for demonstration, testing, and governed benchmarking because it does not require credentials, network access, or a separate model server. It also keeps answer structure stable enough for regression tests.
+
+The main limitation is that the mock client is not a real generative model. It does not reason or rewrite in the same way an external LLM would. Instead, it synthesizes answers from retrieved artifacts and structured tool outputs using deterministic formatting rules. That makes it suitable for controlled demos, but less natural for open-ended explanation, summarization, or nuanced narrative wording.
+
+Some of the main mock-LLM logic is worth making explicit:
+
+- it first checks whether structured tool outputs are available and, if so, prefers those over free-text retrieval
+- for forecast questions, it can summarize the selected target, the best model, the saved forecast rows, and insight-detection candidates
+- for validation questions, it can summarize the latest validation pass-rate view and highlight the most material saved exception
+- for movement questions, it can summarize bridge outputs using opening value, closing value, net movement, main upward or downward contributors, and offsetting steps
+- for explainability questions, it can summarize the leading saved SHAP drivers for the selected target
+- if structured tool outputs are not available, it falls back to retrieved document snippets and joins them with simple rule-based connector phrases
+
+This means the mock client is best understood as a deterministic answer synthesizer over workflow artifacts rather than as a general-purpose language model. Its outputs are usually traceable and stable, but they may sound repetitive, may not adapt gracefully to unusual phrasing, and may be less effective when a question requires broader inference across several artifacts.
+
 #### Mock
 
 No credentials required.
@@ -423,6 +442,18 @@ No credentials required.
 ```powershell
 $env:AIR_LLM_PROVIDER = "mock"
 ```
+
+#### Local LLM
+
+If you want a real local model instead of the mock client, the codebase already includes a `LocalLLMClient` abstraction in `ai_insurance_reporting/chatbot/llm_client.py`. This is intended as the hook point for connecting a local runtime such as Ollama, LM Studio, or another callable wrapper around a local model.
+
+This is not exposed as a turnkey environment-variable option in the current implementation. To use it, you would typically:
+
+1. implement a small local generator function that accepts a prompt string and returns a response string
+2. wrap that function with `LocalLLMClient`
+3. inject that client into the chatbot path, for example where the assistant or RAG pipeline is constructed
+
+In other words, local-model integration is supported as an extension point, but it currently requires a small amount of code wiring rather than only configuration.
 
 #### OpenAI
 
@@ -434,6 +465,8 @@ Required environment variables:
 Optional:
 
 - `AIR_OPENAI_MODEL=gpt-4o-mini`
+
+This is the easiest path if you want stronger answer quality without maintaining a local model runtime.
 
 #### Gemini
 
@@ -449,6 +482,8 @@ Also supported:
 Optional:
 
 - `AIR_GEMINI_MODEL=gemini-2.5-flash`
+
+This is an alternative hosted-provider path if you prefer Gemini rather than OpenAI.
 
 The Streamlit chatbot page also allows provider selection and optional API key entry for the current local session.
 

@@ -86,6 +86,7 @@ class ForecastComparisonTool(BaseTool):
         evaluation = self._load_model("model_evaluation")
         backtest = self._load_model("backtest_predictions")
         insights = self._load_report("reporting", "insight_summary")
+        query_lower = query.lower()
         target = _infer_target(query, forecast_output["target_name"].unique().tolist() if not forecast_output.empty else [])
 
         target_forecast = forecast_output.loc[forecast_output["target_name"] == target] if target else forecast_output
@@ -101,13 +102,20 @@ class ForecastComparisonTool(BaseTool):
             if not target_backtest.empty
             else []
         )
-        largest_segment_change = (
-            target_insights.reindex(target_insights["absolute_change"].abs().sort_values(ascending=False).index)
-            .head(5)
-            .to_dict(orient="records")
-            if not target_insights.empty
-            else []
-        )
+        largest_segment_change: list[dict[str, Any]]
+        if target_insights.empty:
+            largest_segment_change = []
+        else:
+            ranked_insights = target_insights.copy()
+            if "increase" in query_lower or "increases" in query_lower or "increased" in query_lower or "rise" in query_lower or "rises" in query_lower:
+                positive = ranked_insights.loc[ranked_insights["absolute_change"] > 0].sort_values("absolute_change", ascending=False)
+                ranked_insights = positive if not positive.empty else ranked_insights.sort_values("absolute_change", ascending=False)
+            elif "decrease" in query_lower or "decreases" in query_lower or "decreased" in query_lower or "fall" in query_lower or "falls" in query_lower or "decline" in query_lower:
+                negative = ranked_insights.loc[ranked_insights["absolute_change"] < 0].sort_values("absolute_change", ascending=True)
+                ranked_insights = negative if not negative.empty else ranked_insights.sort_values("absolute_change", ascending=True)
+            else:
+                ranked_insights = ranked_insights.reindex(ranked_insights["absolute_change"].abs().sort_values(ascending=False).index)
+            largest_segment_change = ranked_insights.head(5).to_dict(orient="records")
         return {
             "selected_target": target or "",
             "forecast_rows": target_forecast.head(12).to_dict(orient="records"),
@@ -192,9 +200,10 @@ class MovementAnalysisTool(BaseTool):
         movement_summary = self._load_report("reporting", "movement_bridge_summary")
         movement_analysis = self._load_report("reporting", "movement_analysis")
         if movement_summary.empty:
-            return {"latest_quarter": "", "movement_summary": [], "movement_steps": []}
+            return {"latest_quarter": "", "selected_metric": "", "selected_scope": "portfolio", "portfolio_summary": {}, "top_segments": [], "movement_summary": [], "movement_steps": []}
         latest_quarter = str(movement_summary["quarter"].max())
         latest = movement_summary.loc[movement_summary["quarter"] == latest_quarter].copy()
+        query_lower = query.lower()
         metric_aliases = {
             "reserve": "reserves",
             "reserves": "reserves",
@@ -209,17 +218,68 @@ class MovementAnalysisTool(BaseTool):
         if selected_metric:
             latest = latest.loc[latest["metric"] == selected_metric]
         ranked = latest.assign(abs_change=latest["net_change"].abs()).sort_values("abs_change", ascending=False).head(8)
+        has_segment_filter = self._query_mentions_segment(query_lower, latest)
         movement_steps = movement_analysis.loc[
             (movement_analysis["quarter"] == latest_quarter)
             & (movement_analysis["metric"].isin(ranked["metric"]))
             & (movement_analysis["product"].isin(ranked["product"]))
             & (movement_analysis["region"].isin(ranked["region"]))
         ].copy() if not movement_analysis.empty and not ranked.empty else pd.DataFrame()
+        portfolio_summary = self._build_portfolio_summary(latest, movement_analysis, latest_quarter=latest_quarter)
         return {
             "latest_quarter": latest_quarter,
             "selected_metric": selected_metric,
+            "selected_scope": "segment" if has_segment_filter else "portfolio",
+            "portfolio_summary": portfolio_summary,
+            "top_segments": ranked.to_dict(orient="records"),
             "movement_summary": ranked.to_dict(orient="records"),
             "movement_steps": movement_steps.sort_values(["metric", "product", "region", "step_order"]).head(40).to_dict(orient="records") if not movement_steps.empty else [],
+        }
+
+    def _query_mentions_segment(self, query_lower: str, latest_summary: pd.DataFrame) -> bool:
+        if latest_summary.empty:
+            return False
+        products = {str(value).lower() for value in latest_summary["product"].dropna().unique().tolist()}
+        regions = {str(value).lower() for value in latest_summary["region"].dropna().unique().tolist()}
+        return any(name in query_lower for name in products | regions)
+
+    def _build_portfolio_summary(
+        self,
+        latest_summary: pd.DataFrame,
+        movement_analysis: pd.DataFrame,
+        *,
+        latest_quarter: str,
+    ) -> dict[str, object]:
+        if latest_summary.empty:
+            return {}
+        metric_name = str(latest_summary["metric"].iloc[0])
+        opening_value = float(latest_summary["opening_value"].sum())
+        closing_value = float(latest_summary["closing_value"].sum())
+        net_change = float(latest_summary["net_change"].sum())
+        if movement_analysis.empty:
+            top_positive_steps: list[dict[str, object]] = []
+            top_negative_steps: list[dict[str, object]] = []
+        else:
+            relevant_steps = movement_analysis.loc[
+                (movement_analysis["quarter"] == latest_quarter)
+                & (movement_analysis["metric"] == metric_name)
+                & (movement_analysis["movement_step"] != "residual")
+            ].copy()
+            grouped = (
+                relevant_steps.groupby("movement_step", as_index=False)["movement_amount"]
+                .sum()
+                .sort_values("movement_amount", ascending=False)
+            ) if not relevant_steps.empty else pd.DataFrame(columns=["movement_step", "movement_amount"])
+            top_positive_steps = grouped.loc[grouped["movement_amount"] > 0].head(3).to_dict(orient="records")
+            top_negative_steps = grouped.loc[grouped["movement_amount"] < 0].sort_values("movement_amount").head(3).to_dict(orient="records")
+        return {
+            "quarter": latest_quarter,
+            "metric": metric_name,
+            "opening_value": round(opening_value, 6),
+            "closing_value": round(closing_value, 6),
+            "net_change": round(net_change, 6),
+            "top_positive_steps": top_positive_steps,
+            "top_negative_steps": top_negative_steps,
         }
 
 

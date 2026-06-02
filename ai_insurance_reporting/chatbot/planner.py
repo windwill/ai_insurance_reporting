@@ -27,6 +27,72 @@ class AgentPlanner:
         "data",
         "etl",
     }
+    DRIVER_INTENT_KEYWORDS = {
+        "why",
+        "driver",
+        "drivers",
+        "drove",
+        "driven",
+        "cause",
+        "caused",
+        "reason",
+        "reasons",
+    }
+    MOVEMENT_METRIC_KEYWORDS = {
+        "reserve",
+        "reserves",
+        "claim",
+        "claims",
+        "premium",
+        "premiums",
+        "csm",
+        "capital",
+    }
+    FORECAST_INTENT_KEYWORDS = {
+        "forecast",
+        "forecasting",
+        "outlook",
+        "model",
+        "models",
+        "performed",
+        "prediction",
+        "predictions",
+        "predict",
+        "predicted",
+        "best",
+        "mae",
+        "rmse",
+        "forward",
+    }
+    MOVEMENT_CONTEXT_KEYWORDS = {
+        "movement",
+        "bridge",
+        "waterfall",
+        "opening",
+        "closing",
+        "beginning",
+        "ending",
+        "increase",
+        "increases",
+        "increased",
+        "decrease",
+        "decreases",
+        "decreased",
+        "rise",
+        "rises",
+        "rose",
+        "fall",
+        "falls",
+        "fell",
+        "change",
+        "changes",
+        "changed",
+        "quarter",
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+    }
 
     KEYWORD_MAP = {
         "ScenarioRunTool": {"scenario", "stress", "stressed", "shock", "sensitivity"},
@@ -45,6 +111,11 @@ class AgentPlanner:
         question_lower = question.lower()
         tokens = self._tokenize(question)
         selected: list[str] = []
+        driver_intent = bool(tokens & self.DRIVER_INTENT_KEYWORDS)
+        movement_metric_intent = bool(tokens & self.MOVEMENT_METRIC_KEYWORDS)
+        forecast_intent = bool(tokens & self.FORECAST_INTENT_KEYWORDS)
+        movement_context = bool(tokens & self.MOVEMENT_CONTEXT_KEYWORDS)
+
         if "what if" in question_lower:
             selected.append("ScenarioRunTool")
         if (tokens & self.EXECUTION_VERBS) and (
@@ -55,6 +126,13 @@ class AgentPlanner:
             if tokens & keywords:
                 selected.append(tool_name)
 
+        if driver_intent and movement_metric_intent and movement_context:
+            selected.append("MovementAnalysisTool")
+            if not forecast_intent:
+                selected.append("ExplainabilityTool")
+            if "ForecastComparisonTool" in selected and not forecast_intent:
+                selected = [tool for tool in selected if tool != "ForecastComparisonTool"]
+
         if not selected:
             return []
 
@@ -63,9 +141,9 @@ class AgentPlanner:
             "ScenarioRunTool",
             "ScenarioSummaryTool",
             "ValidationSummaryTool",
-            "ForecastComparisonTool",
             "MovementAnalysisTool",
             "ExplainabilityTool",
+            "ForecastComparisonTool",
             "NarrativeLookupTool",
             "FigureLookupTool",
             "RunSummaryTool",
