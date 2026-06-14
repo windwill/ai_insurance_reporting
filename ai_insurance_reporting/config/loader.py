@@ -248,6 +248,20 @@ def _apply_env_overrides(config: dict[str, Any]) -> dict[str, Any]:
             target = target.setdefault(part, {})
         target[path_parts[-1]] = env_value
 
+    # If the artifact root is redirected, keep the other artifact subpaths aligned
+    # unless they were explicitly overridden elsewhere.
+    artifact_root = os.getenv("AIR_ARTIFACTS_DIR")
+    if artifact_root:
+        paths = config.setdefault("paths", {})
+        if os.getenv("AIR_REPORTS_DIR") is None:
+            paths["reports_dir"] = str(Path(artifact_root) / "reports")
+        if os.getenv("AIR_FIGURES_DIR") is None:
+            paths["figures_dir"] = str(Path(artifact_root) / "figures")
+        if os.getenv("AIR_MODELS_DIR") is None:
+            paths["models_dir"] = str(Path(artifact_root) / "models")
+        if os.getenv("AIR_LOGS_DIR") is None:
+            paths["logs_dir"] = str(Path(artifact_root) / "logs")
+
     return config
 
 

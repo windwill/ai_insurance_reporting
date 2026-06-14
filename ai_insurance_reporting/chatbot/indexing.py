@@ -561,23 +561,27 @@ class ChatbotIndexer:
     def _index_scenario_impact_summary(self, impact_summary: pd.DataFrame, *, scenario_name: str) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
         for row in impact_summary.itertuples(index=False):
+            metric_name = getattr(row, "metric", getattr(row, "metric_name", "scenario_metric"))
+            quarter = str(getattr(row, "quarter", ""))
+            absolute_delta = float(getattr(row, "absolute_delta", getattr(row, "change", 0.0)))
+            percentage_delta = float(getattr(row, "percentage_delta", getattr(row, "change_pct", 0.0)))
             rows.append(
                 {
-                    "document_id": f"SCN-IMP-{scenario_name}-{row.metric}",
+                    "document_id": f"SCN-IMP-{scenario_name}-{metric_name}",
                     "document_type": "scenario_summary",
-                    "reporting_quarter": str(row.quarter),
+                    "reporting_quarter": quarter,
                     "section": "scenario_reporting",
-                    "title": f"Scenario impact for {row.metric}",
+                    "title": f"Scenario impact for {metric_name}",
                     "content": (
-                        f"Scenario {scenario_name} changes {row.metric} from {float(row.baseline_value):.4f} to "
-                        f"{float(row.scenario_value):.4f}, a delta of {float(row.absolute_delta):.4f} "
-                        f"or {float(row.percentage_delta):.2%}."
+                        f"Scenario {scenario_name} changes {metric_name} from {float(row.baseline_value):.4f} to "
+                        f"{float(row.scenario_value):.4f}, a delta of {absolute_delta:.4f} "
+                        f"or {percentage_delta:.2%}."
                     ),
-                    "keywords": f"scenario impact {scenario_name} {row.metric}",
+                    "keywords": f"scenario impact {scenario_name} {metric_name}",
                     "source_dataset": "scenario_impact_summary",
-                    "source_columns": "scenario_name,quarter,metric,baseline_value,scenario_value,absolute_delta,percentage_delta",
-                    "source_filters": f"scenario_name={scenario_name};metric={row.metric}",
-                    "source_value": f"percentage_delta={float(row.percentage_delta):.4f}",
+                    "source_columns": "scenario_name,quarter,metric_name,baseline_value,scenario_value,change,change_pct",
+                    "source_filters": f"scenario_name={scenario_name};metric_name={metric_name}",
+                    "source_value": f"change_pct={percentage_delta:.4f}",
                 }
             )
         return rows
@@ -585,31 +589,46 @@ class ChatbotIndexer:
     def _index_scenario_top_impacts(self, top_impacts: pd.DataFrame, *, scenario_name: str) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
         for row in top_impacts.itertuples(index=False):
+            metric_name = getattr(row, "metric", getattr(row, "metric_name", "scenario_metric"))
+            quarter = str(getattr(row, "quarter", ""))
+            percentage_delta = float(getattr(row, "percentage_delta", getattr(row, "change_pct", 0.0)))
             rows.append(
                 {
-                    "document_id": f"SCN-TOP-{scenario_name}-{row.metric}-{abs(hash((row.product, row.region))) % 100000}",
+                    "document_id": f"SCN-TOP-{scenario_name}-{metric_name}-{abs(hash((row.product, row.region))) % 100000}",
                     "document_type": "scenario_top_impact",
-                    "reporting_quarter": str(row.quarter),
+                    "reporting_quarter": quarter,
                     "section": "scenario_reporting",
-                    "title": f"Top scenario impact for {row.metric}",
+                    "title": f"Top scenario impact for {metric_name}",
                     "content": (
-                        f"Scenario {scenario_name} shows a {float(row.percentage_delta):.2%} change in {row.metric} "
+                        f"Scenario {scenario_name} shows a {percentage_delta:.2%} change in {metric_name} "
                         f"for {row.product} in {row.region}."
                     ),
-                    "keywords": f"scenario top impact {scenario_name} {row.metric} {row.product} {row.region}",
+                    "keywords": f"scenario top impact {scenario_name} {metric_name} {row.product} {row.region}",
                     "source_dataset": "scenario_top_impacts",
-                    "source_columns": "scenario_name,quarter,metric,product,region,baseline_value,scenario_value,absolute_delta,percentage_delta",
-                    "source_filters": f"scenario_name={scenario_name};metric={row.metric};product={row.product};region={row.region}",
-                    "source_value": f"percentage_delta={float(row.percentage_delta):.4f}",
+                    "source_columns": "scenario_name,quarter,metric_name,product,region,baseline_value,scenario_value,change,change_pct",
+                    "source_filters": f"scenario_name={scenario_name};metric_name={metric_name};product={row.product};region={row.region}",
+                    "source_value": f"change_pct={percentage_delta:.4f}",
                 }
             )
         return rows
 
     def _index_scenario_narrative(self, narrative_path: Path, *, scenario_name: str) -> list[dict[str, object]]:
         payload = json.loads(narrative_path.read_text(encoding="utf-8"))
-        summary_text = str(payload.get("summary", "")).strip()
-        top_metrics = ", ".join(payload.get("top_impacted_metrics", []))
-        top_segments = ", ".join(payload.get("top_impacted_segments", []))
+        summary_text = str(payload.get("summary", payload.get("summary_text", ""))).strip()
+        top_metrics_payload = payload.get("top_impacted_metrics", [])
+        top_segments_payload = payload.get("top_impacted_segments", [])
+        top_metrics = ", ".join(
+            item.get("metric_name", item.get("metric", "")) if isinstance(item, dict) else str(item)
+            for item in top_metrics_payload
+        )
+        top_segments = ", ".join(
+            (
+                f"{item.get('product', '')} / {item.get('region', '')} for {item.get('metric_name', item.get('metric', ''))}".strip()
+                if isinstance(item, dict)
+                else str(item)
+            )
+            for item in top_segments_payload
+        )
         return [
             {
                 "document_id": f"SCN-NAR-{scenario_name}",
@@ -618,7 +637,13 @@ class ChatbotIndexer:
                 "section": "scenario_reporting",
                 "title": f"Scenario narrative summary for {scenario_name}",
                 "content": f"{summary_text} Top impacted metrics: {top_metrics}. Top impacted segments: {top_segments}.",
-                "keywords": f"scenario narrative summary {scenario_name} {' '.join(payload.get('top_impacted_metrics', []))}",
+                "keywords": (
+                    f"scenario narrative summary {scenario_name} "
+                    + " ".join(
+                        item.get("metric_name", item.get("metric", "")) if isinstance(item, dict) else str(item)
+                        for item in top_metrics_payload
+                    )
+                ),
                 "source_dataset": "scenario_narrative_summary",
                 "source_columns": "summary,top_impacted_metrics,top_impacted_segments",
                 "source_filters": f"scenario_name={scenario_name}",
