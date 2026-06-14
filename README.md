@@ -20,7 +20,7 @@ The project is intended to demonstrate how AI-supported methods can be embedded 
 - LLM evaluation and analyst review
 - CLI and Streamlit interfaces
 
-The package should therefore be read as an executable case study. It is not intended to reproduce full IFRS 17 valuation logic or regulatory capital production.
+The package should therefore be read as an executable case study. It is not intended to reproduce full valuation logic or regulatory capital production.
 
 ## Use of AI
 
